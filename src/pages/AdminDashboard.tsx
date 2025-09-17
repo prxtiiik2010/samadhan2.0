@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { listAllComplaints } from "@/lib/firestore";
+import { allocateComplaintToDepartment, listAllComplaints, updateComplaintStatus } from "@/lib/firestore";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const AdminDashboard = () => {
   const { toast } = useToast();
@@ -12,6 +13,7 @@ const AdminDashboard = () => {
   const [sortBy, setSortBy] = useState("priority");
   const [complaints, setComplaints] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [deptChoice, setDeptChoice] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -33,6 +35,31 @@ const AdminDashboard = () => {
     const q = searchTerm.toLowerCase();
     return complaints.filter(c => (c.title + c.category + c.location).toLowerCase().includes(q));
   }, [complaints, searchTerm]);
+
+  const setStatus = async (id: string, status: string) => {
+    try {
+      await updateComplaintStatus(id, status as any);
+      setComplaints(prev => prev.map(c => (c.id === id ? { ...c, status } : c)));
+      toast({ title: "Status updated" });
+    } catch (e: any) {
+      toast({ title: "Failed to update status", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const allocate = async (id: string) => {
+    const dep = deptChoice[id];
+    if (!dep) {
+      toast({ title: "Select a department first" });
+      return;
+    }
+    try {
+      await allocateComplaintToDepartment(id, dep);
+      setComplaints(prev => prev.map(c => (c.id === id ? { ...c, assignedDepartment: dep, status: "in_progress" } : c)));
+      toast({ title: "Allocated to department" });
+    } catch (e: any) {
+      toast({ title: "Failed to allocate", description: e?.message, variant: "destructive" });
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch ((status || "").toLowerCase()) {
@@ -65,9 +92,45 @@ const AdminDashboard = () => {
               <CardHeader className="flex-row items-center justify-between">
                 <CardTitle>{c.title || c.id}</CardTitle>
                 {getStatusBadge(c.status)}
-          </CardHeader>
-          <CardContent>
-                <p className="text-sm text-muted-foreground">{c.category} • {c.location || ""}</p>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const loc = c.location as any;
+                  const locText = loc
+                    ? (loc.address
+                        ? loc.address
+                        : (typeof loc.lat === "number" && typeof loc.lng === "number"
+                            ? `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`
+                            : ""))
+                    : "";
+                  return (
+                    <p className="text-sm text-muted-foreground">
+                      {c.category}
+                      {locText ? ` • ${locText}` : ""}
+                    </p>
+                  );
+                })()}
+                <div className="mt-4 flex flex-wrap gap-2 items-center">
+                  <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "open")}>Mark Open</Button>
+                  <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "in_progress")}>Mark In Progress</Button>
+                  <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "resolved")}>Mark Resolved</Button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 items-center">
+                  <Select value={deptChoice[c.id] || ""} onValueChange={(v) => setDeptChoice(p => ({ ...p, [c.id]: v }))}>
+                    <SelectTrigger className="w-56"><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Municipal Corporation">Municipal Corporation</SelectItem>
+                      <SelectItem value="Public Works Department">Public Works Department</SelectItem>
+                      <SelectItem value="Health Department">Health Department</SelectItem>
+                      <SelectItem value="Police Department">Police Department</SelectItem>
+                      <SelectItem value="Electricity Board">Electricity Board</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" onClick={() => allocate(c.id)}>Allocate to the department</Button>
+                  {c.assignedDepartment && (
+                    <Badge className="ml-1" variant="secondary">Assigned: {c.assignedDepartment}</Badge>
+                  )}
+                </div>
         </CardContent>
       </Card>
               ))}

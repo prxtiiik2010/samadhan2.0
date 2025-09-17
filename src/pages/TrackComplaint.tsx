@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Search, Clock, CheckCircle, AlertCircle, FileText, Calendar, User, MessageSquare } from "lucide-react";
 import { listAllComplaints, upvoteComplaint } from "@/lib/firestore";
+import { useToast } from "@/hooks/use-toast";
 
 const TrackComplaint = () => {
   const [complaintId, setComplaintId] = useState("");
@@ -14,6 +15,8 @@ const TrackComplaint = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [publicComplaints, setPublicComplaints] = useState<any[]>([]);
   const [loadingPublic, setLoadingPublic] = useState(false);
+  const [publicError, setPublicError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   // Mock complaint data
   const mockComplaint = {
@@ -87,9 +90,14 @@ const TrackComplaint = () => {
   useEffect(() => {
     const load = async () => {
       setLoadingPublic(true);
+      setPublicError(null);
       try {
         const all = await listAllComplaints();
         setPublicComplaints((all as any[]).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 20));
+      } catch (e: any) {
+        const msg = e?.message || "Failed to load complaints";
+        setPublicError(msg);
+        toast({ title: "Unable to load public complaints", description: msg, variant: "destructive" });
       } finally {
         setLoadingPublic(false);
       }
@@ -99,15 +107,22 @@ const TrackComplaint = () => {
 
   const handleUpvote = async (id: string, index: number) => {
     try {
-      await upvoteComplaint(id);
+      // For anonymous users, we'll use a temporary ID based on localStorage
+      const userId = `anonymous_${localStorage.getItem('anonymous_user_id') || Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('anonymous_user_id', userId.replace('anonymous_', ''));
+      
+      await upvoteComplaint(id, userId);
       setPublicComplaints(prev => {
         const copy = [...prev];
         const item = { ...copy[index] } as any;
         item.upvotes = (item.upvotes || 0) + 1;
+        item.upvotedBy = [...(item.upvotedBy || []), userId];
         copy[index] = item;
         return copy;
       });
-    } catch {}
+    } catch (err: any) {
+      console.error('Upvote failed:', err);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -320,15 +335,24 @@ const TrackComplaint = () => {
           </div>
           {loadingPublic ? (
             <div className="text-center py-8">Loading…</div>
+          ) : publicError ? (
+            <div className="text-center py-8 text-destructive">{publicError}</div>
           ) : publicComplaints.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No complaints to show.</div>
           ) : (
             <div className="space-y-4">
               {publicComplaints.map((c, idx) => (
                 <Card key={c.id}>
-                  <CardHeader className="flex-row items-center justify-between">
+                  <CardHeader className="flex-row items-center justify-between gap-4">
                     <div>
-                      <CardTitle className="text-lg">{c.title}</CardTitle>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <span>{c.title}</span>
+                        {c.status && (
+                          <Badge className={getStatusColor(String(c.status))}>
+                            {String(c.status)}
+                          </Badge>
+                        )}
+                      </CardTitle>
                       <CardDescription>{c.category}</CardDescription>
                     </div>
                     <Badge variant="secondary">{new Date(c.createdAt).toLocaleDateString()}</Badge>

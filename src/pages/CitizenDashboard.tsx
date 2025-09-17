@@ -5,9 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, Clock, FileText, Filter, MessageCircle, Search, ThumbsUp, XCircle } from "lucide-react";
+import { CheckCircle, Clock, FileText, Filter, MessageCircle, Search, ThumbsUp, XCircle, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { listComplaintsByUser } from "@/lib/firestore";
+import { listComplaintsByUser, deleteComplaint } from "@/lib/firestore";
 
 interface Comment {
   id: string;
@@ -44,6 +44,7 @@ const CitizenDashboard = () => {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -96,6 +97,22 @@ const CitizenDashboard = () => {
       .filter(c => (searchTerm ? (c.title + c.description + c.location).toLowerCase().includes(searchTerm.toLowerCase()) : true));
   }, [complaints, statusFilter, categoryFilter, searchTerm]);
 
+  const onDelete = async (id: string) => {
+    if (!id) return;
+    const confirmed = window.confirm("Are you sure you want to delete this complaint? This action cannot be undone.");
+    if (!confirmed) return;
+    setDeletingId(id);
+    try {
+      await deleteComplaint(id);
+      setComplaints(prev => prev.filter(c => c.id !== id));
+      toast({ title: "Complaint deleted" });
+    } catch (e: any) {
+      toast({ title: "Failed to delete complaint", description: e?.message, variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
@@ -115,11 +132,48 @@ const CitizenDashboard = () => {
                 <div className="flex items-center gap-2">
                   {getStatusIcon(c.status)}
                   <CardTitle>{c.title}</CardTitle>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onDelete(c.id)}
+                    disabled={deletingId === c.id}
+                    className="text-red-600 hover:bg-red-50"
+                    aria-label="Delete complaint"
+                    title="Delete this complaint"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-                {getStatusBadge(c.status)}
+                <div className="flex items-center gap-2">
+                  {getStatusBadge(c.status)}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onDelete(c.id)}
+                    disabled={deletingId === c.id}
+                    className="text-red-600 border-red-300 hover:bg-red-50"
+                    title="Delete this complaint"
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    {deletingId === c.id ? "Deleting..." : "Delete"}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">{c.description}</p>
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onDelete(c.id)}
+                    disabled={deletingId === c.id}
+                    className="text-red-600 border-red-300 hover:bg-red-50"
+                    aria-label="Delete complaint"
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    {deletingId === c.id ? "Deleting..." : "Delete"}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}

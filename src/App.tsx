@@ -13,7 +13,7 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import CitizenDashboard from "./pages/CitizenDashboard";
 import NotFound from "./pages/NotFound";
-import { AuthProvider, ProtectedRoute } from "./contexts/AuthContext";
+import { AuthProvider, ProtectedRoute, AdminRoute } from "./contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
@@ -33,7 +33,7 @@ const App = () => (
               <Route path="/dashboard" element={<CitizenDashboard />} />
               <Route path="/feedback" element={<Feedback />} />
               <Route path="/admin" element={<AdminLogin />} />
-              <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+              <Route path="/admin/dashboard" element={<ProtectedRoute><AdminRoute><AdminDashboard /></AdminRoute></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Layout>

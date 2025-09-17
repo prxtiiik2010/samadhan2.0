@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
@@ -13,11 +13,13 @@ import {
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import samadhanLogo from "@/assets/samadhan-logo.png";
-
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { t, isRTL } = useLanguage();
+  const { user, signOutUser } = useAuth();
 
   const navigation = [
     { name: t('nav.home', 'Home'), href: "/" },
@@ -27,6 +29,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: t('nav.feedback', 'Feedback'), href: "/feedback" },
     { name: t('nav.admin', 'Admin Login'), href: "/admin" },
   ];
+
+  const navItems = user ? navigation.filter(n => n.href !== "/admin") : navigation;
+
+  const handleLogout = async () => {
+    try {
+      await signOutUser();
+      navigate("/");
+    } catch {
+      // no-op
+    }
+  };
 
   return (
     <div className={`min-h-screen bg-background ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
@@ -65,8 +78,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <nav className="hidden md:flex space-x-6">
-              {navigation.map((item) => (
+            <nav className="hidden md:flex items-center space-x-6">
+              {navItems.map((item) => (
                 <Link
                   key={item.name}
                   to={item.href}
@@ -79,6 +92,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   {item.name}
                 </Link>
               ))}
+              {user && (
+                <div className="flex items-center gap-3 ml-2">
+                  <span className="text-xs text-primary-foreground/80 hidden lg:inline">
+                    {user.email}
+                  </span>
+                  <Button size="sm" variant="secondary" onClick={handleLogout}>
+                    Logout
+                  </Button>
+                </div>
+              )}
             </nav>
           </div>
         </div>

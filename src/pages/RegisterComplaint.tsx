@@ -6,10 +6,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, CheckCircle } from "lucide-react";
+import { FileText, CheckCircle, AlertTriangle, ThumbsUp, MapPin, Users, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { createComplaint } from "@/lib/firestore";
+import { createComplaint, findNearbyComplaints, upvoteComplaint, type Complaint } from "@/lib/firestore";
+
+// Helper function to calculate distance between two coordinates (Haversine formula)
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371000; // Earth's radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Distance in meters
+};
 
 const RegisterComplaint = () => {
   const { toast } = useToast();
@@ -27,9 +40,71 @@ const RegisterComplaint = () => {
     address: "",
   });
   const [locLoading, setLocLoading] = useState(false);
+  const [duplicateComplaints, setDuplicateComplaints] = useState<Complaint[]>([]);
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const checkForDuplicates = async () => {
+    if (!formData.latitude || !formData.longitude || !formData.category) {
+      return false;
+    }
+
+    try {
+      const lat = Number(formData.latitude);
+      const lng = Number(formData.longitude);
+      
+      // Validate coordinates
+      if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        toast({ 
+          title: "Invalid Location", 
+          description: "Please provide valid GPS coordinates", 
+          variant: "destructive" 
+        });
+        return false;
+      }
+      
+      const nearbyComplaints = await findNearbyComplaints(lat, lng, formData.category, 100);
+      
+      if (nearbyComplaints.length > 0) {
+        setDuplicateComplaints(nearbyComplaints);
+        setShowDuplicateWarning(true);
+        toast({ 
+          title: "Similar Complaints Found", 
+          description: `Found ${nearbyComplaints.length} similar complaint(s) nearby. Please review them before proceeding.`,
+          duration: 5000
+        });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking for duplicates:", error);
+      toast({ 
+        title: "Duplicate Check Failed", 
+        description: "Unable to check for similar complaints. You can still proceed with submission.", 
+        variant: "destructive" 
+      });
+      return false;
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check for duplicates first if location and category are provided
+    if (formData.latitude && formData.longitude && formData.category) {
+      const hasDuplicates = await checkForDuplicates();
+      if (hasDuplicates) {
+        return; // Stop submission, show duplicate warning
+      }
+    }
+
+    await submitComplaint();
+  };
+
+  const submitComplaint = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    
     try {
       const title = `${formData.category || t('register.general', 'General')} ${t('register.complaint', 'Complaint')}`;
       const attachments: string[] = [];
@@ -66,9 +141,55 @@ const RegisterComplaint = () => {
         longitude: "",
         address: "",
       });
+      setShowDuplicateWarning(false);
+      setDuplicateComplaints([]);
     } catch (err: any) {
       toast({ title: "Failed to submit complaint", description: err?.message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const handleUpvoteExisting = async (complaintId: string) => {
+    if (!user) {
+      toast({ 
+        title: "Authentication Required", 
+        description: "Please sign in to upvote complaints",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    try {
+      await upvoteComplaint(complaintId, user.uid);
+      toast({ 
+        title: "✅ Upvote Successful", 
+        description: "Your support has been recorded. Thank you for helping prioritize this issue!",
+        duration: 4000
+      });
+      
+      // Update the duplicate complaints list to reflect the new upvote count
+      setDuplicateComplaints(prev => prev.map(c => 
+        c.id === complaintId 
+          ? { ...c, upvotes: (c.upvotes || 0) + 1, upvotedBy: [...(c.upvotedBy || []), user.uid] }
+          : c
+      ));
+    } catch (err: any) {
+      const errorMessage = err?.message === "You have already upvoted this complaint" 
+        ? "You have already supported this complaint" 
+        : "Unable to record your support. Please try again.";
+      
+      toast({ 
+        title: "Upvote Failed", 
+        description: errorMessage, 
+        variant: "destructive" 
+      });
+    }
+  };
+
+  const handleProceedWithNewComplaint = () => {
+    setShowDuplicateWarning(false);
+    submitComplaint();
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -292,12 +413,129 @@ const RegisterComplaint = () => {
                 </div>
               </div>
 
+              {/* Enhanced Duplicate Warning */}
+              {showDuplicateWarning && duplicateComplaints.length > 0 && (
+                <Alert className="border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 shadow-lg">
+                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                  <AlertDescription>
+                    <div className="space-y-4">
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                          <MapPin className="h-5 w-5 text-amber-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-amber-900 text-lg mb-1">
+                            Similar Complaint Found Nearby
+                          </h4>
+                          <p className="text-amber-800 text-sm leading-relaxed">
+                            A complaint for this issue at this location already exists. You can upvote the existing complaint to help prioritize it.
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white/70 rounded-lg p-4 space-y-3">
+                        <h5 className="font-medium text-amber-900 flex items-center">
+                          <Users className="h-4 w-4 mr-2" />
+                          Existing Complaints ({duplicateComplaints.length})
+                        </h5>
+                        {duplicateComplaints.map((complaint, index) => {
+                          const isUpvoted = user && complaint.upvotedBy?.includes(user.uid);
+                          const createdDate = new Date(complaint.createdAt).toLocaleDateString();
+                          const distance = formData.latitude && formData.longitude && complaint.location?.lat && complaint.location?.lng 
+                            ? calculateDistance(
+                                Number(formData.latitude), 
+                                Number(formData.longitude), 
+                                complaint.location.lat, 
+                                complaint.location.lng
+                              ).toFixed(0)
+                            : null;
+                          
+                          return (
+                            <div key={complaint.id} className="bg-white border border-amber-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                              <div className="flex justify-between items-start mb-3">
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-2 mb-1">
+                                    <h6 className="font-medium text-gray-900 text-sm">{complaint.title}</h6>
+                                    <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                      {complaint.category}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-4 text-xs text-gray-500 mb-2">
+                                    <span className="flex items-center">
+                                      <Clock className="h-3 w-3 mr-1" />
+                                      {createdDate}
+                                    </span>
+                                    {distance && (
+                                      <span className="flex items-center">
+                                        <MapPin className="h-3 w-3 mr-1" />
+                                        ~{distance}m away
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-gray-600 line-clamp-2">{complaint.description}</p>
+                                </div>
+                                <div className="flex flex-col items-end space-y-2 ml-4">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-sm font-medium text-gray-700">
+                                      {complaint.upvotes || 0}
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant={isUpvoted ? "default" : "outline"}
+                                      onClick={() => handleUpvoteExisting(complaint.id!)}
+                                      disabled={isUpvoted}
+                                      className={`text-xs transition-all ${
+                                        isUpvoted 
+                                          ? "bg-green-600 hover:bg-green-700 text-white" 
+                                          : "border-amber-300 text-amber-700 hover:bg-amber-50"
+                                      }`}
+                                    >
+                                      <ThumbsUp className="h-3 w-3 mr-1" />
+                                      {isUpvoted ? 'Upvoted' : 'Upvote'}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                        <Button
+                          onClick={() => setShowDuplicateWarning(false)}
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+                        >
+                          <ThumbsUp className="h-4 w-4 mr-2" />
+                          I'll upvote existing complaint
+                        </Button>
+                        <Button
+                          onClick={handleProceedWithNewComplaint}
+                          variant="default"
+                          size="sm"
+                          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          This is different - Submit new complaint
+                        </Button>
+                      </div>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="flex justify-end space-x-4">
                 <Button type="button" variant="outline">
                   {t('register.form.saveDraft', 'Save as Draft')}
                 </Button>
-                <Button type="submit" className="bg-primary hover:bg-primary/90">
-                  {t('register.form.submit', 'Submit Complaint')}
+                <Button 
+                  type="submit" 
+                  className="bg-primary hover:bg-primary/90"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Submitting...' : t('register.form.submit', 'Submit Complaint')}
                 </Button>
               </div>
             </form>

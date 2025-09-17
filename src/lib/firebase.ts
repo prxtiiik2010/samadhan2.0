@@ -1,6 +1,6 @@
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 import { getAnalytics, isSupported as analyticsIsSupported, Analytics } from "firebase/analytics";
 import { getStorage } from "firebase/storage";
@@ -30,7 +30,11 @@ if (!getApps().length) {
 
 export const firebaseApp = app;
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Use initializeFirestore with auto-detected long polling to avoid blocked channel errors
+export const db = initializeFirestore(app, {
+  // Tries to detect when to prefer long-polling (works around ad-blockers/corporate proxies)
+  experimentalAutoDetectLongPolling: true,
+});
 export const rtdb = getDatabase(app);
 export const storage = getStorage(app);
 

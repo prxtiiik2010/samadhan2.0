@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* Samadhan Government Portal Design System */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* Fonts are loaded via <head> in index.html to avoid PostCSS @import order issues */
 
 @layer base {
   :root {
