@@ -413,6 +413,8 @@ const RegisterComplaint = () => {
                 </div>
               </div>
 
+              {/* reCAPTCHA temporarily removed for deployment */}
+
               {/* Enhanced Duplicate Warning */}
               {showDuplicateWarning && duplicateComplaints.length > 0 && (
                 <Alert className="border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 shadow-lg">

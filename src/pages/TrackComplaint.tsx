@@ -358,7 +358,19 @@ const TrackComplaint = () => {
                     <Badge variant="secondary">{new Date(c.createdAt).toLocaleDateString()}</Badge>
                   </CardHeader>
                   <CardContent className="flex items-start justify-between gap-4">
-                    <p className="text-sm text-muted-foreground flex-1 min-w-0 break-words whitespace-pre-wrap">{c.description}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-muted-foreground break-words whitespace-pre-wrap">{c.description}</p>
+                      {typeof c.estimatedYearsMin !== "undefined" && typeof c.estimatedYearsMax !== "undefined" && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Estimated resolution: <strong>{c.estimatedYearsMin}–{c.estimatedYearsMax} years</strong>
+                          {c.estimatedResolutionFrom && c.estimatedResolutionTo && (
+                            <>
+                              {" "}({new Date(c.estimatedResolutionFrom).getFullYear()}–{new Date(c.estimatedResolutionTo).getFullYear()})
+                            </>
+                          )}
+                        </p>
+                      )}
+                    </div>
                     <Button variant="outline" onClick={() => handleUpvote(c.id, idx)}>
                       <MessageSquare className="h-4 w-4 mr-2" />
                       {(c.upvotes || 0).toString()} Upvote

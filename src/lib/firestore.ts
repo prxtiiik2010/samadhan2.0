@@ -18,12 +18,52 @@ export interface Complaint {
     lng: number;
     address?: string;
   };
+  // Auto-added estimation fields
+  estimatedYearsMin?: number;
+  estimatedYearsMax?: number;
+  estimatedResolutionFrom?: number; // timestamp (ms)
+  estimatedResolutionTo?: number;   // timestamp (ms)
 }
 
 const complaintsCol = collection(db, "complaints");
 
+function getEstimatedYearsForCategory(category: string): { min: number; max: number } | null {
+  const map: Record<string, { min: number; max: number }> = {
+    "Healthcare": { min: 5, max: 10 },
+    "Education": { min: 5, max: 15 },
+    "Infrastructure": { min: 3, max: 10 },
+    "Law & Order": { min: 3, max: 7 },
+    "Corruption": { min: 10, max: 20 },
+    "Digital Services": { min: 2, max: 5 },
+    "Employment": { min: 5, max: 15 },
+    "Welfare Schemes": { min: 2, max: 5 },
+  };
+  // Try exact match first, then case-insensitive fallback
+  if (map[category]) return map[category];
+  const key = Object.keys(map).find(k => k.toLowerCase() === category.toLowerCase());
+  return key ? map[key] : null;
+}
+
 export async function createComplaint(data: Omit<Complaint, "id">) {
-  const docRef = await addDoc(complaintsCol, { upvotes: 0, upvotedBy: [], ...data });
+  const now = Date.now();
+  const est = getEstimatedYearsForCategory(data.category);
+  const estimatedYearsMin = est?.min;
+  const estimatedYearsMax = est?.max;
+  const estimatedResolutionFrom = est ? new Date(now).setFullYear(new Date(now).getFullYear() + est.min) : undefined;
+  const estimatedResolutionTo = est ? new Date(now).setFullYear(new Date(now).getFullYear() + est.max) : undefined;
+
+  const docRef = await addDoc(complaintsCol, {
+    upvotes: 0,
+    upvotedBy: [],
+    ...data,
+    // Ensure createdAt exists
+    createdAt: data.createdAt || now,
+    // Auto-added estimation fields
+    estimatedYearsMin,
+    estimatedYearsMax,
+    estimatedResolutionFrom,
+    estimatedResolutionTo,
+  });
   return docRef.id;
 }
 

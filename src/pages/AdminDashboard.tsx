@@ -103,11 +103,23 @@ const AdminDashboard = () => {
                             ? `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`
                             : ""))
                     : "";
+                  const hasEst = typeof c.estimatedYearsMin !== "undefined" && typeof c.estimatedYearsMax !== "undefined";
+                  const yearsRange = hasEst ? `${c.estimatedYearsMin}–${c.estimatedYearsMax} years` : "";
+                  const yearSpan = c.estimatedResolutionFrom && c.estimatedResolutionTo
+                    ? ` (${new Date(c.estimatedResolutionFrom).getFullYear()}–${new Date(c.estimatedResolutionTo).getFullYear()})`
+                    : "";
                   return (
-                    <p className="text-sm text-muted-foreground">
-                      {c.category}
-                      {locText ? ` • ${locText}` : ""}
-                    </p>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">
+                        {c.category}
+                        {locText ? ` • ${locText}` : ""}
+                      </p>
+                      {hasEst && (
+                        <p className="text-xs text-muted-foreground">
+                          Estimated resolution: <strong>{yearsRange}</strong>{yearSpan}
+                        </p>
+                      )}
+                    </div>
                   );
                 })()}
                 <div className="mt-4 flex flex-wrap gap-2 items-center">

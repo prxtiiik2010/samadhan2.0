@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, Clock, FileText, Filter, MessageCircle, Search, ThumbsUp, XCircle, Trash2 } from "lucide-react";
+import { CheckCircle, Clock, FileText, Filter, MessageCircle, Search, ThumbsUp, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { listComplaintsByUser, deleteComplaint } from "@/lib/firestore";
 
@@ -144,36 +144,10 @@ const CitizenDashboard = () => {
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="flex items-center gap-2">
-                  {getStatusBadge(c.status)}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onDelete(c.id)}
-                    disabled={deletingId === c.id}
-                    className="text-red-600 border-red-300 hover:bg-red-50"
-                    title="Delete this complaint"
-                  >
-                    <XCircle className="h-4 w-4 mr-1" />
-                    {deletingId === c.id ? "Deleting..." : "Delete"}
-                  </Button>
-                </div>
+                <div className="flex items-center gap-2">{getStatusBadge(c.status)}</div>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">{c.description}</p>
-                <div className="mt-3 flex justify-end">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onDelete(c.id)}
-                    disabled={deletingId === c.id}
-                    className="text-red-600 border-red-300 hover:bg-red-50"
-                    aria-label="Delete complaint"
-                  >
-                    <XCircle className="h-4 w-4 mr-1" />
-                    {deletingId === c.id ? "Deleting..." : "Delete"}
-                  </Button>
-                </div>
               </CardContent>
             </Card>
           ))}
